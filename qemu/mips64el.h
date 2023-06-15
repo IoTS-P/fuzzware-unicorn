@@ -4,6 +4,7 @@
 #define fuzzer_init_cov fuzzer_init_cov_mips64el
 #define fuzzer_reset_cov fuzzer_reset_cov_mips64el
 #define cov_prev_loc cov_prev_loc_mips64el
+#define cov_prev_int_loc cov_prev_int_loc_mips64el
 #define cov_area_ptr cov_area_ptr_mips64el
 #define cov_area_size cov_area_size_mips64el
 #define fw_log fw_log_mips64el

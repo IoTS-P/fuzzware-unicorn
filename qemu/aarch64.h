@@ -4,6 +4,7 @@
 #define fuzzer_init_cov fuzzer_init_cov_aarch64
 #define fuzzer_reset_cov fuzzer_reset_cov_aarch64
 #define cov_prev_loc cov_prev_loc_aarch64
+#define cov_prev_int_loc cov_prev_int_loc_aarch64
 #define cov_area_ptr cov_area_ptr_aarch64
 #define cov_area_size cov_area_size_aarch64
 #define fw_log fw_log_aarch64

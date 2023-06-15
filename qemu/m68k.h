@@ -4,6 +4,7 @@
 #define fuzzer_init_cov fuzzer_init_cov_m68k
 #define fuzzer_reset_cov fuzzer_reset_cov_m68k
 #define cov_prev_loc cov_prev_loc_m68k
+#define cov_prev_int_loc cov_prev_int_loc_m68k
 #define cov_area_ptr cov_area_ptr_m68k
 #define cov_area_size cov_area_size_m68k
 #define fw_log fw_log_m68k

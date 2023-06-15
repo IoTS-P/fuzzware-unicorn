@@ -2,6 +2,7 @@
 #include "cov.h"
 
 unsigned long cov_prev_loc = 0;
+unsigned long cov_prev_int_loc = 0;
 unsigned char *cov_area_ptr = NULL;
 unsigned long cov_area_size = 0;
 

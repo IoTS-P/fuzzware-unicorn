@@ -4,6 +4,7 @@
 #define fuzzer_init_cov fuzzer_init_cov_ppc
 #define fuzzer_reset_cov fuzzer_reset_cov_ppc
 #define cov_prev_loc cov_prev_loc_ppc
+#define cov_prev_int_loc cov_prev_int_loc_ppc
 #define cov_area_ptr cov_area_ptr_ppc
 #define cov_area_size cov_area_size_ppc
 #define fw_log fw_log_ppc

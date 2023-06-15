@@ -166,9 +166,31 @@ static void tb_clean_internal(void **p, int x)
 Based on https://abiondo.me/2018/09/21/improving-afl-qemu-mode/
 Inserts AFL instrumentation code into the current TB.
 */
-static void afl_add_instrumentation(TCGContext *ctx, target_ulong cur_loc) {
+// #define DEBUG_EDGE_ADD True
+static void afl_add_instrumentation(TCGContext *ctx, target_ulong cur_loc, bool is_interrupt) {
     TCGv_i32 index, count, new_prev_loc;
     TCGv_ptr prev_loc_ptr, count_ptr;
+    target_ulong* prev_loc, prev_loc_int;
+
+#ifdef DEBUG_EDGE_ADD
+    FILE *file;
+    // 打开文件（以写入模式）
+    file = fopen("/home/shandian/fuzzware/debug.txt", "a");
+    if(file == NULL){
+        return;
+    }
+#endif
+
+    if(is_interrupt){
+        prev_loc = &cov_prev_int_loc;
+    }else{
+        cov_prev_int_loc = 0;
+        prev_loc = &cov_prev_loc;
+    }
+
+#ifdef DEBUG_EDGE_ADD
+    fprintf(file, "is_interrupt: 0x%d, prev_loc: 0x%x, cur_loc: 0x%x, ", is_interrupt, *prev_loc, cur_loc);
+#endif
 
     if (unlikely(cov_area_ptr == NULL))
         return;
@@ -179,25 +201,37 @@ static void afl_add_instrumentation(TCGContext *ctx, target_ulong cur_loc) {
     if (cur_loc >= cov_area_size)
         return;
 
+    /* new prev loc */
+    cov_area_ptr[(*prev_loc) ^ cur_loc]++;
+    *prev_loc = cur_loc >> 1;
+
     /* index = prev_loc ^ cur_loc */
-    prev_loc_ptr = tcg_const_ptr(ctx, &cov_prev_loc);
-    index = tcg_temp_new_i32(ctx);
-    tcg_gen_ld_i32(ctx, index, prev_loc_ptr, 0);
-    tcg_gen_xori_i32(ctx, index, index, cur_loc);
+    // prev_loc_ptr = tcg_const_ptr(ctx, prev_loc);
+    // index = tcg_temp_new_i32(ctx);
+    // tcg_gen_ld_i32(ctx, index, prev_loc_ptr, 0);
+    // tcg_gen_xori_i32(ctx, index, index, cur_loc);
 
-    /* cov_area_ptr[index]++ */
-    count_ptr = tcg_const_ptr(ctx, cov_area_ptr);
-    tcg_gen_add_ptr(ctx, count_ptr, count_ptr, MAKE_TCGV_PTR(GET_TCGV_I32(index)));
-    tcg_temp_free_i32(ctx, index);
-    count = tcg_temp_new_i32(ctx);
-    tcg_gen_ld8u_i32(ctx, count, count_ptr, 0);
-    tcg_gen_addi_i32(ctx, count, count, 1);
-    tcg_gen_st8_i32(ctx, count, count_ptr, 0);
-    tcg_temp_free_i32(ctx, count);
+    // /* cov_area_ptr[index]++ */
+    // count_ptr = tcg_const_ptr(ctx, cov_area_ptr);
+    // tcg_gen_add_ptr(ctx, count_ptr, count_ptr, MAKE_TCGV_PTR(GET_TCGV_I32(index)));
+    // tcg_temp_free_i32(ctx, index);
+    // count = tcg_temp_new_i32(ctx);
+    // tcg_gen_ld8u_i32(ctx, count, count_ptr, 0);
+    // tcg_gen_addi_i32(ctx, count, count, 1);
+    // tcg_gen_st8_i32(ctx, count, count_ptr, 0);
+    // tcg_temp_free_i32(ctx, count);
 
-    /* prev_loc = cur_loc >> 1 */
-    new_prev_loc = tcg_const_i32(ctx, cur_loc >> 1);
-    tcg_gen_st_i32(ctx, new_prev_loc, prev_loc_ptr, 0);
+    // /* prev_loc = cur_loc >> 1 */
+    // new_prev_loc = tcg_const_i32(ctx, cur_loc >> 1);
+    // tcg_gen_st_i32(ctx, new_prev_loc, prev_loc_ptr, 0);
+
+    /* prev_int_loc = 0 */
+
+#ifdef DEBUG_EDGE_ADD
+    // 写入值到文件中
+    fprintf(file, "new_prev_loc: 0x%x\n", cur_loc >> 1);
+    fclose(file);
+#endif
 }
 
 static uint64_t sdbm(uint8_t *data, size_t len)
@@ -261,9 +295,25 @@ static int cpu_gen_code(CPUArchState *env, TranslationBlock *tb, int *gen_code_s
                        exceptions */
     ti = profile_getclock();
 #endif
+#ifdef DEBUG_EDGE_ADD
+    FILE *file;
+    // 打开文件（以写入模式）
+    file = fopen("/home/shandian/fuzzware/debug.txt", "a");
+    if(file == NULL){
+        return;
+    }
+#endif
     tcg_func_start(s);
-
-    afl_add_instrumentation(s, tb->pc);
+    if(env->v7m.exception>0){
+        afl_add_instrumentation(s, tb->pc, 1);
+#ifdef DEBUG_EDGE_ADD
+        // 写入值到文件中
+        fprintf(file, "irq: %d\n", env->v7m.exception);
+        fclose(file);
+#endif
+    }else{
+        afl_add_instrumentation(s, tb->pc, 0);
+    }
     gen_intermediate_code(env, tb);
 
     /* generate machine code */

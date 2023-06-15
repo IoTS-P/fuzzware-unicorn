@@ -4,6 +4,7 @@
 #define fuzzer_init_cov fuzzer_init_cov_mipsel
 #define fuzzer_reset_cov fuzzer_reset_cov_mipsel
 #define cov_prev_loc cov_prev_loc_mipsel
+#define cov_prev_int_loc cov_prev_int_loc_mipsel
 #define cov_area_ptr cov_area_ptr_mipsel
 #define cov_area_size cov_area_size_mipsel
 #define fw_log fw_log_mipsel
