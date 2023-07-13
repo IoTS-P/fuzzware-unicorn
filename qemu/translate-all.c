@@ -166,16 +166,16 @@ static void tb_clean_internal(void **p, int x)
 Based on https://abiondo.me/2018/09/21/improving-afl-qemu-mode/
 Inserts AFL instrumentation code into the current TB.
 */
-// #define DEBUG_EDGE_ADD True
+// #define DEBUG_EDGE_INFO True
 static void afl_add_instrumentation(TCGContext *ctx, target_ulong cur_loc, bool is_interrupt) {
     TCGv_i32 index, count, new_prev_loc;
     TCGv_ptr prev_loc_ptr, count_ptr;
     target_ulong* prev_loc, prev_loc_int;
 
-#ifdef DEBUG_EDGE_ADD
+#ifdef DEBUG_EDGE_INFO
     FILE *file;
     // 打开文件（以写入模式）
-    file = fopen("/home/shandian/fuzzware/debug.txt", "a");
+    file = fopen("/home/shandian/fuzzware/now_edges.txt", "a");
     if(file == NULL){
         return;
     }
@@ -188,7 +188,7 @@ static void afl_add_instrumentation(TCGContext *ctx, target_ulong cur_loc, bool 
         prev_loc = &cov_prev_loc;
     }
 
-#ifdef DEBUG_EDGE_ADD
+#ifdef DEBUG_EDGE_INFO
     fprintf(file, "is_interrupt: 0x%d, prev_loc: 0x%x, cur_loc: 0x%x, ", is_interrupt, *prev_loc, cur_loc);
 #endif
 
@@ -227,7 +227,7 @@ static void afl_add_instrumentation(TCGContext *ctx, target_ulong cur_loc, bool 
 
     /* prev_int_loc = 0 */
 
-#ifdef DEBUG_EDGE_ADD
+#ifdef DEBUG_EDGE_INFO
     // 写入值到文件中
     fprintf(file, "new_prev_loc: 0x%x\n", cur_loc >> 1);
     fclose(file);
