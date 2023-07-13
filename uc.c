@@ -19,7 +19,7 @@
 #include <time.h> // nanosleep
 
 #include <string.h>
-
+#include "map.h"
 #include "uc_priv.h"
 
 // target specific headers
@@ -47,6 +47,8 @@ void fuzzer_init_cov_armeb(uc_engine *uc, void *bitmap_region, uint32_t bitmap_s
 void fuzzer_reset_cov_armeb(uc_engine *uc, int do_clear) {}
 void fw_log_armeb(const int level, const char *frmt, ...) {}
 #endif
+
+map bb_map;//定义映射表
 
 UNICORN_EXPORT
 unsigned int uc_version(unsigned int *major, unsigned int *minor)
@@ -523,7 +525,7 @@ uc_err uc_mem_set(uc_engine *uc, uint64_t address, uint8_t value, size_t size)
 
     if (!check_mem_area(uc, address, size))
         return UC_ERR_WRITE_UNMAPPED;
-
+    
     // memory area can overlap adjacent memory blocks
     while (count < size)
     {
@@ -603,6 +605,176 @@ uc_err uc_mem_write(uc_engine *uc, uint64_t address, const void *_bytes, size_t 
         return UC_ERR_WRITE_UNMAPPED;
 }
 
+/*定义map和vector的查找和插入操作*/
+//void vector_push_back(vector* v, uint32_t item);
+void vector_push_back(vector* v, uint32_t item) {
+    // FILE *file;
+    // // 打开文件（以写入模式）
+    // file = fopen("/home/shandian/fuzzware/debug.txt", "a");
+    // if(file == NULL){
+    //     return -1;
+    // }
+    // // 写入值到文件中
+    // fprintf(file, "vector_push_back\n");
+    // fclose(file);
+
+    if (v->size >= MAX_BLOCKS) {
+        return;
+    }
+    v->items[v->size++] = item;
+}
+
+//void map_insert(map* m, uint32_t key, int value);
+void map_insert(map* m, uint32_t key, int value) {
+    // FILE *file;
+    // // 打开文件（以写入模式）
+    // file = fopen("/home/shandian/fuzzware/debug.txt", "a");
+    // if(file == NULL){
+    //     return -1;
+    // }
+    // // 写入值到文件中
+    // fprintf(file, "map_insert\n");
+    // fclose(file);
+
+    //该key存在，则直接赋值
+    for (size_t i = 0; i < m->size; ++i) {
+        if (m->entries[i].key == key) {
+            m->entries[i].value = value;
+            return;
+        }
+    }
+    
+    if (m->size >= MAX_BLOCKS) {
+        return;
+    }
+    //该key若不存在，则在末尾插入
+    map_entry new_entry;
+    new_entry.key = key;
+    new_entry.value = value;
+    m->entries[m->size++] = new_entry;
+}
+
+int map_find(map* m, uint32_t key) {
+    /*FILE *file;
+    // 打开文件（以写入模式）
+    file = fopen("/home/shandian/fuzzware/debug.txt", "a");
+    if(file == NULL){
+        return -1;
+    }
+    */
+   
+    // // 写入值到文件中
+    // fprintf(file, "map_find begin\n");
+    // fclose(file);
+
+    for (size_t i = 0; i < m->size; ++i) {
+        if (m->entries[i].key == key) {
+            // 写入值到文件中
+            //fprintf(file, "map_find 0x%x INDEX 0x%x\n", key, i);
+            // fclose(file);
+            return i;
+        }
+    }
+
+    // // 写入值到文件中
+    // fprintf(file, "map_find 0x%x NOTFOUND\n", key);
+    // fclose(file);
+
+    return -1; // 表示找不到
+}
+
+
+/*  正向筛选  */
+//将导入进来的基本块分类，输出映射表bb_map
+void load_basic_blocks(const char *filename) {
+    vector bb_all , bb_interest;
+    uint32_t basic_block;
+    int count = 0;
+    char line[20];
+    vector* current_vec = NULL;
+
+    bb_all.size = 0;
+    bb_interest.size = 0;
+    bb_map.size = 0;
+
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Error opening basic_blocks.txt");
+        exit(EXIT_FAILURE);
+    }
+
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "bb_all", 6) == 0) {
+            current_vec = &bb_all;
+        } else if (strncmp(line, "bb_interest", 11) == 0) {
+            current_vec = &bb_interest;
+        } else if (sscanf(line, "%lx", &basic_block) == 1 && current_vec) {
+            vector_push_back(current_vec, basic_block);
+        }
+    }
+
+    for (size_t i = 0; i < bb_interest.size; ++i) {
+        if (map_find(&bb_map, bb_interest.items[i]) == -1) {
+        map_insert(&bb_map, bb_interest.items[i], count++);
+        }
+    }
+
+    for (size_t i = 0; i < bb_all.size; ++i) {
+        if (map_find(&bb_map, bb_all.items[i]) == -1) {
+            map_insert(&bb_map, bb_all.items[i], count++);
+        }
+    }
+
+    fclose(file);
+    
+}
+
+
+/*反向筛选
+void load_basic_blocks(const char *filename) {
+    vector bb_all , bb_interest;
+    uint32_t basic_block;
+    int count = 0;
+    char line[20];
+    vector* current_vec = NULL;
+
+    bb_all.size = 0;
+    bb_interest.size = 0;
+    bb_map.size = 0;
+
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Error opening basic_blocks.txt");
+        exit(EXIT_FAILURE);
+    }
+
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "bb_all", 6) == 0) {
+            current_vec = &bb_all;
+        } else if (strncmp(line, "bb_interest", 11) == 0) {
+            current_vec = &bb_interest;
+        } else if (sscanf(line, "%lx", &basic_block) == 1 && current_vec) {
+            vector_push_back(current_vec, basic_block);
+        }
+    }
+
+    for (size_t i = 0; i < bb_all.size; ++i) {
+        // Check if this item from bb_all is not in bb_interest.
+        if (map_find(&bb_map, bb_all.items[i]) == -1) {
+            map_insert(&bb_map, bb_all.items[i], count++);
+        }
+    }
+
+    for (size_t i = 0; i < bb_interest.size; ++i) {
+        map_insert(&bb_map, bb_interest.items[i], count++);
+    }
+
+    fclose(file);
+    
+}
+*/
+
+
 #define TIMEOUT_STEP 2 // microseconds
 static void *_timeout_fn(void *arg)
 {
@@ -669,6 +841,7 @@ static void clear_deleted_hooks(uc_engine *uc)
     }
 
     list_clear(&uc->hooks_to_del);
+
 }
 
 UNICORN_EXPORT
@@ -681,6 +854,9 @@ uc_err uc_emu_start(uc_engine *uc, uint64_t begin, uint64_t until, uint64_t time
     uc->emulation_done = false;
     uc->size_recur_mem = 0;
     uc->timed_out = false;
+
+    const char* file= "/home/shandian/fuzzware/pipeline/fuzzware_pipeline/basic_blocks.txt";
+    load_basic_blocks(file);
 
     switch (uc->arch)
     {

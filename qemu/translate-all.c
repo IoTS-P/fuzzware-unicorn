@@ -35,6 +35,7 @@
 
 #include "qemu-common.h"
 #define NO_CPU_IO_DEFS
+#include "map.h"
 #include "cpu.h"
 #include "tcg.h"
 #if defined(CONFIG_USER_ONLY)
@@ -90,6 +91,8 @@ typedef struct PageDesc {
 #endif
 } PageDesc;
 
+
+
 /* In system mode we want L1_MAP to be based on ram offsets,
    while in user mode we want it to be based on virtual addresses.  */
 #if !defined(CONFIG_USER_ONLY)
@@ -120,9 +123,14 @@ typedef struct PageDesc {
 
 #define V_L1_SHIFT (L1_MAP_ADDR_SPACE_BITS - TARGET_PAGE_BITS - V_L1_BITS)
 
+
 static uintptr_t qemu_real_host_page_size;
 static uintptr_t qemu_host_page_size;
 static uintptr_t qemu_host_page_mask;
+
+
+
+
 
 
 static void tb_link_page(struct uc_struct *uc, TranslationBlock *tb,
@@ -167,25 +175,53 @@ Based on https://abiondo.me/2018/09/21/improving-afl-qemu-mode/
 Inserts AFL instrumentation code into the current TB.
 */
 static void afl_add_instrumentation(TCGContext *ctx, target_ulong cur_loc) {
-    TCGv_i32 index, count, new_prev_loc;
+
+    FILE *file;
+    // 打开文件（以写入模式）
+
+    /**/
+    //fprintf(file, "afl_add_instrumentation begin\n");
+
+    // printf("\n\n**************到这里了*****************\n\n");
+    TCGv_i32 count, new_prev_loc;
     TCGv_ptr prev_loc_ptr, count_ptr;
+    uint32_t index;
 
     if (unlikely(cov_area_ptr == NULL))
         return;
+    index = map_find(&bb_map, cur_loc);
+    if (index != -1){
+        cov_area_ptr[index]++;
+        file = fopen("/home/shandian/fuzzware/debug.txt", "a");
+        if(file == NULL)return -1;
+        fprintf(file, "afl_add_instrumentation index 0x%x\n", index);
+        fprintf(file, "afl_add_instrumentation cur_loc 0x%x\n", cur_loc);        
+    }
+    else {
+        // fprintf(file, "afl_add_instrumentation index 0x%x\n", index);
+        // fprintf(file, "afl_add_instrumentation cur_loc 0x%x\n", cur_loc);
+        // cov_area_ptr[cur_loc]++;
+    }
 
-    cur_loc  = (cur_loc >> 4) ^ (cur_loc << 8);
-    cur_loc &= cov_area_size - 1;
+    
+    // 写入值到文件中
+    
+    //fclose(file);
 
-    if (cur_loc >= cov_area_size)
-        return;
+    //cur_loc  = (cur_loc >> 4) ^ (cur_loc << 8);
+    //cur_loc &= cov_area_size - 1;
 
-    /* index = prev_loc ^ cur_loc */
+    //if (cur_loc >= cov_area_size)
+    //    return;
+
+    /* index = prev_loc ^ cur_loc 
     prev_loc_ptr = tcg_const_ptr(ctx, &cov_prev_loc);
     index = tcg_temp_new_i32(ctx);
     tcg_gen_ld_i32(ctx, index, prev_loc_ptr, 0);
     tcg_gen_xori_i32(ctx, index, index, cur_loc);
+    */
 
-    /* cov_area_ptr[index]++ */
+    /* cov_area_ptr[index]++    
     count_ptr = tcg_const_ptr(ctx, cov_area_ptr);
     tcg_gen_add_ptr(ctx, count_ptr, count_ptr, MAKE_TCGV_PTR(GET_TCGV_I32(index)));
     tcg_temp_free_i32(ctx, index);
@@ -194,10 +230,12 @@ static void afl_add_instrumentation(TCGContext *ctx, target_ulong cur_loc) {
     tcg_gen_addi_i32(ctx, count, count, 1);
     tcg_gen_st8_i32(ctx, count, count_ptr, 0);
     tcg_temp_free_i32(ctx, count);
+    */
 
-    /* prev_loc = cur_loc >> 1 */
+    /* prev_loc = cur_loc >> 1 
     new_prev_loc = tcg_const_i32(ctx, cur_loc >> 1);
     tcg_gen_st_i32(ctx, new_prev_loc, prev_loc_ptr, 0);
+    */
 }
 
 static uint64_t sdbm(uint8_t *data, size_t len)
@@ -228,6 +266,7 @@ void tb_cleanup(struct uc_struct *uc)
                         uc->l1_map[i] = NULL;
                     }
                 }
+
             } else {
                 for (i = 0; i < V_L1_SIZE; i++) {
                     p = uc->l1_map[i];
@@ -1082,6 +1121,7 @@ void tb_phys_invalidate(struct uc_struct *uc,
         tb_page_remove(&p->first_tb, tb);
         invalidate_page_bitmap(p);
     }
+
     if (tb->page_addr[1] != -1 && tb->page_addr[1] != page_addr) {
         p = page_find(uc, tb->page_addr[1] >> TARGET_PAGE_BITS);
         tb_page_remove(&p->first_tb, tb);
@@ -1107,12 +1147,14 @@ void tb_phys_invalidate(struct uc_struct *uc,
         if (n1 == 2) {
             break;
         }
+
         tb1 = (TranslationBlock *)((uintptr_t)tb1 & ~3);
         tb2 = tb1->jmp_next[n1];
         tb_reset_jump(tb1, n1);
         tb1->jmp_next[n1] = NULL;
         tb1 = tb2;
     }
+
     tb->jmp_first = (TranslationBlock *)((uintptr_t)tb | 2); /* fail safe */
 
     tcg_ctx->tb_ctx.tb_phys_invalidate_count++;
